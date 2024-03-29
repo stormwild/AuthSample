@@ -18,3 +18,8 @@
     IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" /> -->
 
 ```
+
+```csharp
+var protector = idp.CreateProtector("auth-cookie");
+    ctx.Response.Headers.TryAdd("set-cookie", $"auth={protector.Protect("usr:jane")}");
+```
