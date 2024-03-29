@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 using Authentication;
 
 using Microsoft.AspNetCore.DataProtection;
@@ -10,21 +12,28 @@ builder.Services.AddScoped<AuthService>();
 
 var app = builder.Build();
 
-app.MapGet("/username", (HttpContext ctx, IDataProtectionProvider idp) =>
+app.Use((ctx, next) =>
 {
+    var idp = ctx.RequestServices.GetRequiredService<IDataProtectionProvider>();
+
     var protector = idp.CreateProtector("auth-cookie");
 
     var authCookie = ctx.Request.Headers.Cookie.FirstOrDefault(c => c.StartsWith("auth="));
-    if (authCookie == null)
+    if (authCookie is not null)
     {
-        ctx.Response.StatusCode = 401;
-        return Results.Unauthorized();
+        var protectedPayload = authCookie.Split('=').Last();
+        var value = protector.Unprotect(protectedPayload).Split(':').Last();
+
+        ctx.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, value)]));
     }
 
-    var protectedPayload = authCookie.Split('=').Last();
-    var value = protector.Unprotect(protectedPayload).Split(':').Last();
+    return next();
+});
 
-    return Results.Ok(value);
+app.MapGet("/username", (HttpContext ctx) =>
+{
+    var user = ctx.User.FindFirstValue(ClaimTypes.Name) ?? "Anonymous";
+    return Results.Ok(user);
 });
 
 app.MapGet("/login", (AuthService auth) =>
